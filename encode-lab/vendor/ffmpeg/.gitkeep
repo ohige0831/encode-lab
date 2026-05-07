@@ -1,0 +1,9 @@
+# Place ffmpeg.exe and ffprobe.exe here before running the build script.
+# These binaries are excluded from git (see root .gitignore).
+#
+# Download from: https://www.gyan.dev/ffmpeg/builds/
+#   Recommended build: ffmpeg-release-essentials.zip
+#   Extract ffmpeg.exe and ffprobe.exe from the bin/ folder.
+#
+# The build script (scripts/build_exe.ps1) automatically copies them to
+# dist/EncodeLab/ffmpeg/ during the build.

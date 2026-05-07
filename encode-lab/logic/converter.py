@@ -75,11 +75,16 @@ class ConversionJob:
     ``duration_sec`` is optional media duration used by ``stream_job`` to
     compute progress percentages.  Populate it from ``MediaInfo.duration_sec``
     before passing the job to ``ConversionWorker``.
+
+    ``has_audio`` prevents ffmpeg errors for audio-less sources (e.g. rawvideo).
+    When ``False``, ``-an`` is always emitted regardless of preset audio settings.
+    ``None`` means the file was not probed — original preset behaviour applies.
     """
 
     input_path:   Path
     settings:     ConversionSettings
     duration_sec: float | None = None   # from ffprobe; None → indeterminate bar
+    has_audio:    bool  | None = None   # from ffprobe; False → force -an
     output_path:  Path = field(init=False)
 
     def __post_init__(self) -> None:
@@ -194,7 +199,19 @@ def build_ffmpeg_command(job: ConversionJob) -> list[str]:
 
     # --- video codec -------------------------------------------------------
     cmd += ["-vcodec", config.video_codec]
-    cmd += list(config.extra_video_flags)   # e.g. ProRes profile, SVT-AV1 params
+    cmd += list(config.extra_video_flags)   # ProRes profile, NVENC quality args
+
+    # --- profile and level (H.264 / HEVC explicit fields) ------------------
+    # Kept separate from extra_video_flags so compatibility checks can read them
+    # without parsing opaque flag strings.
+    if config.video_profile:
+        cmd += ["-profile:v", config.video_profile]
+    if config.video_level:
+        cmd += ["-level", config.video_level]
+
+    # --- pixel format ------------------------------------------------------
+    if config.pix_fmt:
+        cmd += ["-pix_fmt", config.pix_fmt]
 
     # --- quality: bitrate overrides CRF when set ---------------------------
     if job.settings.bitrate:
@@ -207,24 +224,41 @@ def build_ffmpeg_command(job: ConversionJob) -> list[str]:
     if config.encoder_preset:
         cmd += ["-preset", config.encoder_preset]
 
-    # --- scale filter ------------------------------------------------------
+    # --- video filter / scale ----------------------------------------------
+    # User-specified resolution takes precedence; fall back to preset's filter.
     if job.settings.resolution:
         width, height = _parse_resolution(job.settings.resolution)
         cmd += ["-vf", f"scale={width}:{height}"]
         # TODO: add :flags=lanczos for high-quality downscaling
+    elif config.video_filter:
+        cmd += ["-vf", config.video_filter]
+
+    # --- CFR enforcement ---------------------------------------------------
+    # Prevents VFR output that breaks PowerPoint and some Discord previews.
+    if config.force_cfr:
+        cmd += ["-fps_mode", "cfr"]
 
     # --- audio -------------------------------------------------------------
-    if not config.audio_codec:
-        cmd += ["-an"]
-    elif not job.settings.audio_enabled:
+    # Force -an when the source has no audio stream (probed) to avoid the
+    # "no audio input" ffmpeg error that occurs with e.g. rawvideo sources.
+    _no_audio = (
+        not config.audio_codec
+        or not job.settings.audio_enabled
+        or job.has_audio is False
+    )
+    if _no_audio:
         cmd += ["-an"]
     else:
         cmd += ["-acodec", config.audio_codec]
-        # TODO: add -b:a / -ar flags for audio bitrate/sample-rate control
+        if config.audio_bitrate:
+            cmd += ["-b:a", config.audio_bitrate]
 
     # --- user extra flags --------------------------------------------------
     if job.settings.extra_flags:
         cmd += shlex.split(job.settings.extra_flags)
+
+    # --- preset output flags (e.g. -movflags +faststart) -------------------
+    cmd += list(config.output_flags)
 
     cmd.append(str(job.output_path))
     return cmd

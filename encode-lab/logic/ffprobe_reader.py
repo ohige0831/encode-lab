@@ -48,10 +48,12 @@ class MediaInfo:
     ffprobe output, or the probe itself failed.
     """
 
-    duration_sec:  float | None = None
-    width:         int   | None = None
-    height:        int   | None = None
-    video_codec:   str   | None = None
+    duration_sec:     float | None = None
+    width:            int   | None = None
+    height:           int   | None = None
+    video_codec:      str   | None = None
+    pix_fmt:          str   | None = None  # e.g. "yuv420p", "bgr24"
+    has_audio_stream: bool         = False
 
     # ------------------------------------------------------------------
     # Formatted string properties (safe to call even when fields are None)
@@ -135,20 +137,30 @@ def probe(path: Path) -> MediaInfo:
 def _parse(data: dict) -> MediaInfo:
     """Build a ``MediaInfo`` from a parsed ffprobe JSON dict."""
     duration_sec = _parse_duration(data.get("format") or {})
-    video        = _first_video_stream(data.get("streams") or [])
+    streams      = data.get("streams") or []
+    video        = _first_video_stream(streams)
 
-    width = height = video_codec = None
+    width = height = video_codec = pix_fmt = None
     if video:
         width       = _to_int(video.get("width"))
         height      = _to_int(video.get("height"))
         raw_codec   = video.get("codec_name")
         video_codec = str(raw_codec) if raw_codec else None
+        raw_pix     = video.get("pix_fmt")
+        pix_fmt     = str(raw_pix) if raw_pix else None
+
+    has_audio = any(
+        isinstance(s, dict) and s.get("codec_type") == "audio"
+        for s in streams
+    )
 
     return MediaInfo(
         duration_sec=duration_sec,
         width=width,
         height=height,
         video_codec=video_codec,
+        pix_fmt=pix_fmt,
+        has_audio_stream=has_audio,
     )
 
 

@@ -90,7 +90,15 @@ class PresetConfig:
     encoder_preset:    str
     container:         str
     uses_gpu:          bool            = False
+    is_recommended:    bool            = False            # marks the primary safe preset for UI hints
     extra_video_flags: tuple[str, ...] = field(default_factory=tuple)
+    video_profile:     str             = ""               # -profile:v; empty = omit (e.g. "high", "main")
+    video_level:       str             = ""               # -level; empty = omit (e.g. "4.1", "3.1")
+    pix_fmt:           str             = ""               # -pix_fmt; empty = omit
+    video_filter:      str             = ""               # -vf; overridden by user resolution
+    audio_bitrate:     str             = ""               # -b:a; empty = omit
+    output_flags:      tuple[str, ...] = field(default_factory=tuple)  # e.g. -movflags +faststart
+    force_cfr:         bool            = False            # add -fps_mode cfr to ensure constant frame rate
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +106,31 @@ class PresetConfig:
 # ---------------------------------------------------------------------------
 
 PRESETS: Final[dict[str, PresetConfig]] = {
+
+    # ── Compatibility preset ─────────────────────────────────────────────────
+
+    "H.264 — Compatible (Discord / PowerPoint)": PresetConfig(
+        name="H.264 — Compatible (Discord / PowerPoint)",
+        description=(
+            "[Recommended] MP4 · H.264 High 4.1 · yuv420p · CFR · faststart — "
+            "safest preset for Discord, PowerPoint, QuickTime, Windows, and browsers"
+        ),
+        quality_mode=f"CRF {QUALITY_CRF['standard']} — standard quality",
+        video_codec="libx264",
+        audio_codec="aac",
+        crf=QUALITY_CRF["standard"],
+        encoder_preset="medium",
+        container=".mp4",
+        is_recommended=True,
+        force_cfr=True,
+        video_profile="high",
+        video_level="4.1",
+        pix_fmt="yuv420p",
+        # Rounds odd source dimensions to even — required by yuv420p / H.264
+        video_filter="scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        audio_bitrate="192k",
+        output_flags=("-movflags", "+faststart"),
+    ),
 
     # ── CPU presets ──────────────────────────────────────────────────────────
 
@@ -110,6 +143,8 @@ PRESETS: Final[dict[str, PresetConfig]] = {
         crf=QUALITY_CRF["standard"],
         encoder_preset="fast",
         container=".mp4",
+        video_profile="high",
+        video_level="4.1",
     ),
 
     "H.264 — High quality": PresetConfig(
@@ -121,6 +156,8 @@ PRESETS: Final[dict[str, PresetConfig]] = {
         crf=QUALITY_CRF["high_quality"],
         encoder_preset="slow",
         container=".mp4",
+        video_profile="high",
+        video_level="4.1",
     ),
 
     "H.265 / HEVC — Balanced": PresetConfig(

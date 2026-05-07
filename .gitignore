@@ -1,16 +1,38 @@
+# Python bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
 
+# Virtual environments
 .venv/
 venv/
 
+# Build artefacts — never commit generated binaries
 build/
 dist/
 
+# Logs and temporary files
 *.log
+build_log.txt
 
+# PyInstaller
 *.spec.bak
 
+# Test cache
+.pytest_cache/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Editor / tool local settings
+.claude/settings.local.json
+
+# ffmpeg binaries in vendor/ are not committed (too large, platform-specific).
+# Place ffmpeg.exe and ffprobe.exe in encode-lab/vendor/ffmpeg/ manually.
+# The build script (scripts/build_exe.ps1) auto-resolves Chocolatey shims and
+# copies real binaries into dist/EncodeLab/ffmpeg/ at build time.
+encode-lab/vendor/ffmpeg/*.exe
+encode-lab/vendor/ffmpeg/*.dll

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from logic.compatibility import check_compatibility
 from logic.converter import ConversionJob, ConversionSettings, build_ffmpeg_command
 from logic.environment import check_environment
 from logic.ffprobe_reader import MediaInfo
@@ -243,6 +244,11 @@ class MainWindow(QMainWindow):
                     "color: #c0392b; font-size: 11px; padding-left: 2px;"
                 )
             desc = f"{desc}{avail_tag}"
+        elif config.is_recommended:
+            # Highlight the recommended preset in accent blue instead of grey.
+            self._preset_desc_label.setStyleSheet(
+                "color: #4499dd; font-size: 11px; padding-left: 2px;"
+            )
         else:
             self._preset_desc_label.setStyleSheet(
                 "color: #888; font-size: 11px; padding-left: 2px;"
@@ -414,6 +420,7 @@ class MainWindow(QMainWindow):
                 input_path=p,
                 settings=settings,
                 duration_sec=info.duration_sec if info is not None else None,
+                has_audio=info.has_audio_stream if info is not None else None,
             ))
 
         self._total_jobs = len(jobs)
@@ -465,10 +472,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_file_probed(self, path: Path, info: MediaInfo) -> None:
-        """Update media-info columns, cache result, and refresh size estimate."""
+        """Update media-info columns, cache result, and surface compatibility warnings."""
         self._media_info[str(path)] = info
         self._file_list.set_item_media_info(path, info)
         self._update_size_estimate()
+        for w in check_compatibility(info):
+            self._log_panel.append_warning(f"{path.name}: {w.message}")
 
     def _on_job_started(self, job: ConversionJob) -> None:
         self._current_job_index += 1
